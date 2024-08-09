@@ -259,33 +259,50 @@ fn min_fee(tx_builder: &mut TransactionBuilder) -> Result<Coin, JsError> {
         &tx_builder.config.ex_unit_prices,
     ).unwrap();
 
+    // NOTE: The Chang hardfork introduced an additional fee based on the total size of the
+    // reference scripts.
+    // The additional fee may computed as
+    //
+    //   `totalScriptSize * base * multiplier^(floor(totalScriptSize / range))`
+    //
+    // where base, multiplier and range are protocol parameters.
+    // See the annex on https://github.com/CardanoSolutions/ogmios/releases/tag/v6.5.0
+    fn ref_script_size(ref_script: &ScriptRef) -> u64 {
+        ref_script.to_bytes().len() as u64
+    }
+
+    let size_of_ref_scripts_in_inputs: u64 = tx_builder
+        .inputs
+        .iter()
+        .map(|input| input.utxo.output.script_ref.as_ref().map_or(0, ref_script_size))
+        .sum();
+
+    let size_of_ref_scripts_in_reference_inputs: u64 = tx_builder
+        .reference_inputs
+        .as_ref()
+        .map_or(
+            0,
+            |ref_inputs| ref_inputs
+                .0
+                .iter()
+                .map(|ref_input| ref_input.output.script_ref.as_ref().map_or(0, ref_script_size))
+                .sum()
+        );
+
+    let total_ref_script_size = size_of_ref_scripts_in_inputs + size_of_ref_scripts_in_reference_inputs;
     let mut reference_scripts_tier_price = BigNum::from(0);
-    if let Some(reference_inputs) = &tx_builder.reference_inputs.clone() {
-        // NOTE: The Chang hardfork introduced an additional fee based on the total size of the
-        // reference scripts.
-        // See the annex on https://github.com/CardanoSolutions/ogmios/releases/tag/v6.5.0
+    if total_ref_script_size > 0 {
         let range: u64 = tx_builder.config.min_fee_reference_scripts_range.into();
         let multiplier: Decimal = tx_builder.config.min_fee_reference_scripts_multiplier.clone();
         let base: Decimal = tx_builder.config.min_fee_reference_scripts_base.clone();
 
-        let reference_scripts: Vec<&TransactionUnspentOutput> = reference_inputs
-            .0
-            .iter()
-            .filter(|ref_input| ref_input.output.script_ref.is_some())
-            .collect();
-
-        let size_of_reference_scripts: u64 = reference_scripts
-            .iter()
-            .map(|ref_input| ref_input.to_bytes().len() as u64)
-            .sum();
-
-        let power = size_of_reference_scripts.checked_div(range).unwrap();
+        let power = total_ref_script_size.checked_div(range).unwrap();
         let mut cost_per_byte = base;
         // NOTE: the `fraction` crate doesn't seem to have `pow` built in.
         for _ in 0..power {
             cost_per_byte *= multiplier;
         }
-        reference_scripts_tier_price = (Decimal::from(size_of_reference_scripts) * cost_per_byte)
+        reference_scripts_tier_price = (Decimal::from(total_ref_script_size) * cost_per_byte)
             .ceil()
             .to_u64()
             .unwrap()
