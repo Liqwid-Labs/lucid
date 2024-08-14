@@ -68,6 +68,7 @@ export class Kupmios implements Provider {
               collateralPercentage: parseInt(result.collateralPercentage),
               maxCollateralInputs: parseInt(result.maxCollateralInputs),
               costModels,
+              minFeeReferenceScripts: result.minFeeReferenceScripts
             },
           );
           client.close();

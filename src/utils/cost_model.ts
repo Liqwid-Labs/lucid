@@ -25,6 +25,11 @@ export function createCostModels(costModels: CostModels): C.Costmdls {
 export const PROTOCOL_PARAMETERS_DEFAULT: ProtocolParameters = {
   minFeeA: 44,
   minFeeB: 155381,
+  minFeeReferenceScripts: {
+    base: 15,
+    range: 25600,
+    multiplier: 1.5
+  },
   maxTxSize: 16384,
   maxValSize: 5000,
   keyDeposit: 2000000n,

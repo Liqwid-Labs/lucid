@@ -46,6 +46,9 @@ lucid.txBuilderConfig = C.TransactionBuilderConfigBuilder.new()
       C.BigNum.from_str(protocolParameters.minFeeB.toString()),
     ),
   )
+  .min_fee_reference_scripts_base(protocolParameters.minFeeReferenceScripts.base)
+  .min_fee_reference_scripts_range(protocolParameters.minFeeReferenceScripts.range)
+  .min_fee_reference_scripts_multiplier(protocolParameters.minFeeReferenceScripts.multiplier)
   .key_deposit(
     C.BigNum.from_str(protocolParameters.keyDeposit.toString()),
   )
