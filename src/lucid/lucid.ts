@@ -112,6 +112,9 @@ export class Lucid {
           ),
         )
         .costmdls(createCostModels(protocolParameters.costModels))
+        .min_fee_reference_scripts_base(protocolParameters.minFeeReferenceScripts.base)
+        .min_fee_reference_scripts_multiplier(protocolParameters.minFeeReferenceScripts.multiplier)
+        .min_fee_reference_scripts_range(protocolParameters.minFeeReferenceScripts.range)
         .build();
     }
     lucid.utils = new Utils(lucid);

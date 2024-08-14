@@ -46,6 +46,11 @@ export class Blockfrost implements Provider {
       collateralPercentage: parseInt(result.collateral_percent),
       maxCollateralInputs: parseInt(result.max_collateral_inputs),
       costModels: result.cost_models,
+      minFeeReferenceScripts: {
+        base: result.min_fee_ref_script_cost_per_byte,
+        range: 25_600, // FIXME: Blockfrost doesn't seem to provide this parameter (Ogmios does)
+        multiplier: 1.2, // FIXME: Blockfrost doesn't seem to provide this parameter (Ogmios does)
+      },
     };
   }
 

@@ -1,4 +1,5 @@
 use fraction::ToPrimitive;
+use fraction::Decimal;
 use itertools::Itertools;
 
 use super::fees;
@@ -252,11 +253,63 @@ fn min_fee(tx_builder: &mut TransactionBuilder) -> Result<Coin, JsError> {
     // }
     let build = tx_builder.build()?;
     let full_tx = fake_full_tx(tx_builder, build)?;
-    fees::min_fee(
+    let base_fee = fees::min_fee(
         &full_tx,
         &tx_builder.config.fee_algo,
         &tx_builder.config.ex_unit_prices,
-    )
+    ).unwrap();
+
+    // NOTE: The Chang hardfork introduced an additional fee based on the total size of the
+    // reference scripts.
+    // The additional fee may computed as
+    //
+    //   `totalScriptSize * base * multiplier^(floor(totalScriptSize / range))`
+    //
+    // where base, multiplier and range are protocol parameters.
+    // See the annex on https://github.com/CardanoSolutions/ogmios/releases/tag/v6.5.0
+    fn ref_script_size(ref_script: &ScriptRef) -> u64 {
+        ref_script.to_bytes().len() as u64
+    }
+
+    let size_of_ref_scripts_in_inputs: u64 = tx_builder
+        .inputs
+        .iter()
+        .map(|input| input.utxo.output.script_ref.as_ref().map_or(0, ref_script_size))
+        .sum();
+
+    let size_of_ref_scripts_in_reference_inputs: u64 = tx_builder
+        .reference_inputs
+        .as_ref()
+        .map_or(
+            0,
+            |ref_inputs| ref_inputs
+                .0
+                .iter()
+                .map(|ref_input| ref_input.output.script_ref.as_ref().map_or(0, ref_script_size))
+                .sum()
+        );
+
+    let total_ref_script_size = size_of_ref_scripts_in_inputs + size_of_ref_scripts_in_reference_inputs;
+    let mut reference_scripts_tier_price = BigNum::from(0);
+    if total_ref_script_size > 0 {
+        let range: u64 = tx_builder.config.min_fee_reference_scripts_range.into();
+        let multiplier: Decimal = tx_builder.config.min_fee_reference_scripts_multiplier.clone();
+        let base: Decimal = tx_builder.config.min_fee_reference_scripts_base.clone();
+
+        let power = total_ref_script_size.checked_div(range).unwrap();
+        let mut cost_per_byte = base;
+        // NOTE: the `fraction` crate doesn't seem to have `pow` built in.
+        for _ in 0..power {
+            cost_per_byte *= multiplier;
+        }
+        reference_scripts_tier_price = (Decimal::from(total_ref_script_size) * cost_per_byte)
+            .ceil()
+            .to_u64()
+            .unwrap()
+            .into();
+    }
+
+    base_fee.checked_add(&reference_scripts_tier_price)
 }
 
 // We need to know how many of each type of witness will be in the transaction so we can calculate the tx fee
@@ -311,6 +364,12 @@ pub struct TransactionBuilderConfig {
     max_collateral_inputs: u32,         // protocol parameter
     slot_config: (BigNum, BigNum, u32), // (zero_time, zero_slot, slot_length)
     blockfrost: Blockfrost,
+
+    // The chang hardfork introduced a new fee component for transactions involving reference
+    // scripts.
+    min_fee_reference_scripts_base: Decimal, // protocol parameter
+    min_fee_reference_scripts_range: u32, // protocol parameter
+    min_fee_reference_scripts_multiplier: Decimal, // protocol parameter
 }
 
 #[wasm_bindgen]
@@ -329,6 +388,12 @@ pub struct TransactionBuilderConfigBuilder {
     max_collateral_inputs: Option<u32>,         // protocol parameter
     slot_config: Option<(BigNum, BigNum, u32)>, // (zero_time, zero_slot, slot_length)
     blockfrost: Option<Blockfrost>,
+
+    // The chang hardfork introduced a new fee component for transactions involving reference
+    // scripts.
+    min_fee_reference_scripts_base: Option<f64>, // protocol parameter
+    min_fee_reference_scripts_range: Option<u32>, // protocol parameter
+    min_fee_reference_scripts_multiplier: Option<f64>, // protocol parameter
 }
 
 #[wasm_bindgen]
@@ -348,6 +413,9 @@ impl TransactionBuilderConfigBuilder {
             max_collateral_inputs: None,
             slot_config: None,
             blockfrost: None,
+            min_fee_reference_scripts_base: None,
+            min_fee_reference_scripts_range: None,
+            min_fee_reference_scripts_multiplier: None,
         }
     }
 
@@ -429,6 +497,25 @@ impl TransactionBuilderConfigBuilder {
         cfg
     }
 
+    pub fn min_fee_reference_scripts_base(&self, min_fee_reference_scripts_base: f64) -> Self {
+        let mut cfg = self.clone();
+        cfg.min_fee_reference_scripts_base = Some(min_fee_reference_scripts_base);
+        cfg
+    }
+
+    pub fn min_fee_reference_scripts_range(&self, min_fee_reference_scripts_range: u32) -> Self {
+        let mut cfg = self.clone();
+        cfg.min_fee_reference_scripts_range = Some(min_fee_reference_scripts_range);
+        cfg
+    }
+
+    pub fn min_fee_reference_scripts_multiplier(&self, min_fee_reference_scripts_multiplier: f64) -> Self {
+        let mut cfg = self.clone();
+        cfg.min_fee_reference_scripts_multiplier = Some(min_fee_reference_scripts_multiplier);
+        cfg
+    }
+
+
     pub fn build(&self) -> Result<TransactionBuilderConfig, JsError> {
         let cfg = self.clone();
         Ok(TransactionBuilderConfig {
@@ -479,6 +566,15 @@ impl TransactionBuilderConfigBuilder {
             } else {
                 Blockfrost::new("".to_string(), "".to_string())
             },
+            min_fee_reference_scripts_base: cfg
+                .min_fee_reference_scripts_base
+                .ok_or(JsError::from_str("uninitialized field: min_fee_reference_scripts_base"))?.into(),
+            min_fee_reference_scripts_range: cfg
+                .min_fee_reference_scripts_range
+                .ok_or(JsError::from_str("uninitialized field: min_fee_reference_scripts_range"))?,
+            min_fee_reference_scripts_multiplier: cfg
+                .min_fee_reference_scripts_multiplier
+                .ok_or(JsError::from_str("uninitialized field: min_fee_reference_scripts_multiplier"))?.into(),
         })
     }
 }
@@ -2743,6 +2839,9 @@ mod tests {
         key_deposit: u64,
         max_val_size: u32,
         coins_per_utxo_byte: u64,
+        min_fee_reference_scripts_base: f64,
+        min_fee_reference_scripts_range: u32,
+        min_fee_reference_scripts_multiplier: f64,
     ) -> TransactionBuilder {
         let cfg = TransactionBuilderConfigBuilder::new()
             .fee_algo(linear_fee)
@@ -2754,6 +2853,9 @@ mod tests {
             .ex_unit_prices(&ExUnitPrices::from_float(0.0, 0.0))
             .collateral_percentage(150)
             .max_collateral_inputs(3)
+            .min_fee_reference_scripts_base(min_fee_reference_scripts_base)
+            .min_fee_reference_scripts_range(min_fee_reference_scripts_range)
+            .min_fee_reference_scripts_multiplier(min_fee_reference_scripts_multiplier)
             .build()
             .unwrap();
         TransactionBuilder::new(&cfg)
@@ -2764,6 +2866,9 @@ mod tests {
         coins_per_utxo_byte: u64,
         pool_deposit: u64,
         key_deposit: u64,
+        min_fee_reference_scripts_base: f64,
+        min_fee_reference_scripts_range: u32,
+        min_fee_reference_scripts_multiplier: f64,
     ) -> TransactionBuilder {
         create_tx_builder_full(
             linear_fee,
@@ -2771,6 +2876,9 @@ mod tests {
             key_deposit,
             MAX_VALUE_SIZE,
             coins_per_utxo_byte,
+            min_fee_reference_scripts_base,
+            min_fee_reference_scripts_range,
+            min_fee_reference_scripts_multiplier,
         )
     }
 
@@ -2780,6 +2888,9 @@ mod tests {
             COINS_PER_UTXO_WORD,
             500000000,
             2000000,
+            15.0,
+            25600,
+            1.2,
         )
     }
 
@@ -2787,11 +2898,11 @@ mod tests {
         linear_fee: &LinearFee,
         max_val_size: u32,
     ) -> TransactionBuilder {
-        create_tx_builder_full(linear_fee, 1, 1, max_val_size, 1)
+        create_tx_builder_full(linear_fee, 1, 1, max_val_size, 1, 15.0, 25600, 1.2)
     }
 
     fn create_tx_builder_with_fee(linear_fee: &LinearFee) -> TransactionBuilder {
-        create_tx_builder(linear_fee, 1, 1, 1)
+        create_tx_builder(linear_fee, 1, 1, 1, 15.0, 25600, 1.2)
     }
 
     fn create_tx_builder_with_fee_and_pure_change(linear_fee: &LinearFee) -> TransactionBuilder {
@@ -2806,13 +2917,16 @@ mod tests {
                 .ex_unit_prices(&ExUnitPrices::from_float(0.0, 0.0))
                 .collateral_percentage(150)
                 .max_collateral_inputs(3)
+                .min_fee_reference_scripts_base(15.0)
+                .min_fee_reference_scripts_range(25_600)
+                .min_fee_reference_scripts_multiplier(1.2)
                 .build()
                 .unwrap(),
         )
     }
 
     fn create_tx_builder_with_key_deposit(deposit: u64) -> TransactionBuilder {
-        create_tx_builder(&create_default_linear_fee(), 1, 1, deposit)
+        create_tx_builder(&create_default_linear_fee(), 1, 1, deposit, 15.0, 25600, 1.2)
     }
 
     fn create_default_tx_builder() -> TransactionBuilder {
@@ -5180,6 +5294,9 @@ mod tests {
             .ex_unit_prices(&ExUnitPrices::from_float(0.0, 0.0))
             .collateral_percentage(150)
             .max_collateral_inputs(3)
+            .min_fee_reference_scripts_base(15.0)
+            .min_fee_reference_scripts_range(25_600)
+            .min_fee_reference_scripts_multiplier(1.2)
             .build()
             .unwrap();
         let mut tx_builder = TransactionBuilder::new(&cfg);
@@ -5227,6 +5344,9 @@ mod tests {
             .ex_unit_prices(&ExUnitPrices::from_float(0.0, 0.0))
             .collateral_percentage(150)
             .max_collateral_inputs(3)
+            .min_fee_reference_scripts_base(15.0)
+            .min_fee_reference_scripts_range(25_600)
+            .min_fee_reference_scripts_multiplier(1.2)
             .build()
             .unwrap();
         let mut tx_builder = TransactionBuilder::new(&cfg);
@@ -5604,6 +5724,9 @@ mod tests {
                 .ex_unit_prices(&ExUnitPrices::from_float(0.0, 0.0))
                 .collateral_percentage(150)
                 .max_collateral_inputs(3)
+                .min_fee_reference_scripts_base(15.0)
+                .min_fee_reference_scripts_range(25_600)
+                .min_fee_reference_scripts_multiplier(1.2)
                 .build()
                 .unwrap(),
         );

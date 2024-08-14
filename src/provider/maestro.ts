@@ -39,50 +39,51 @@ export class Maestro implements Provider {
   }
 
   async getProtocolParameters(): Promise<ProtocolParameters> {
-    const timestampedResult = await fetch(`${this.url}/protocol-params`, {
-      headers: this.commonHeaders(),
-    }).then((res) => res.json());
-    const result = timestampedResult.data;
-    // Decimal numbers in Maestro are given as ratio of two numbers represented by string of format "firstNumber/secondNumber".
-    const decimalFromRationalString = (str: string): number => {
-      const forwardSlashIndex = str.indexOf("/");
-      return parseInt(str.slice(0, forwardSlashIndex)) /
-        parseInt(str.slice(forwardSlashIndex + 1));
-    };
-    // To rename keys in an object by the given key-map.
-    // deno-lint-ignore no-explicit-any
-    const renameKeysAndSort = (obj: any, newKeys: any) => {
-      const entries = Object.keys(obj).sort().map((key) => {
-        const newKey = newKeys[key] || key;
-        return {
-          [newKey]: Object.fromEntries(
-            Object.entries(obj[key]).sort(([k, _v], [k2, _v2]) =>
-              k.localeCompare(k2)
-            ),
-          ),
-        };
-      });
-      return Object.assign({}, ...entries);
-    };
-    return {
-      minFeeA: parseInt(result.min_fee_coefficient),
-      minFeeB: parseInt(result.min_fee_constant),
-      maxTxSize: parseInt(result.max_tx_size),
-      maxValSize: parseInt(result.max_value_size),
-      keyDeposit: BigInt(result.stake_key_deposit),
-      poolDeposit: BigInt(result.pool_deposit),
-      priceMem: decimalFromRationalString(result.prices.memory),
-      priceStep: decimalFromRationalString(result.prices.steps),
-      maxTxExMem: BigInt(result.max_execution_units_per_transaction.memory),
-      maxTxExSteps: BigInt(result.max_execution_units_per_transaction.steps),
-      coinsPerUtxoByte: BigInt(result.coins_per_utxo_byte),
-      collateralPercentage: parseInt(result.collateral_percentage),
-      maxCollateralInputs: parseInt(result.max_collateral_inputs),
-      costModels: renameKeysAndSort(result.cost_models, {
-        "plutus:v1": "PlutusV1",
-        "plutus:v2": "PlutusV2",
-      }),
-    };
+    throw new Error("NOT_IMPLEMENTED: Maestro support not implemented");
+    // const timestampedResult = await fetch(`${this.url}/protocol-params`, {
+    //   headers: this.commonHeaders(),
+    // }).then((res) => res.json());
+    // const result = timestampedResult.data;
+    // // Decimal numbers in Maestro are given as ratio of two numbers represented by string of format "firstNumber/secondNumber".
+    // const decimalFromRationalString = (str: string): number => {
+    //   const forwardSlashIndex = str.indexOf("/");
+    //   return parseInt(str.slice(0, forwardSlashIndex)) /
+    //     parseInt(str.slice(forwardSlashIndex + 1));
+    // };
+    // // To rename keys in an object by the given key-map.
+    // // deno-lint-ignore no-explicit-any
+    // const renameKeysAndSort = (obj: any, newKeys: any) => {
+    //   const entries = Object.keys(obj).sort().map((key) => {
+    //     const newKey = newKeys[key] || key;
+    //     return {
+    //       [newKey]: Object.fromEntries(
+    //         Object.entries(obj[key]).sort(([k, _v], [k2, _v2]) =>
+    //           k.localeCompare(k2)
+    //         ),
+    //       ),
+    //     };
+    //   });
+    //   return Object.assign({}, ...entries);
+    // };
+    // return {
+    //   minFeeA: parseInt(result.min_fee_coefficient),
+    //   minFeeB: parseInt(result.min_fee_constant),
+    //   maxTxSize: parseInt(result.max_tx_size),
+    //   maxValSize: parseInt(result.max_value_size),
+    //   keyDeposit: BigInt(result.stake_key_deposit),
+    //   poolDeposit: BigInt(result.pool_deposit),
+    //   priceMem: decimalFromRationalString(result.prices.memory),
+    //   priceStep: decimalFromRationalString(result.prices.steps),
+    //   maxTxExMem: BigInt(result.max_execution_units_per_transaction.memory),
+    //   maxTxExSteps: BigInt(result.max_execution_units_per_transaction.steps),
+    //   coinsPerUtxoByte: BigInt(result.coins_per_utxo_byte),
+    //   collateralPercentage: parseInt(result.collateral_percentage),
+    //   maxCollateralInputs: parseInt(result.max_collateral_inputs),
+    //   costModels: renameKeysAndSort(result.cost_models, {
+    //     "plutus:v1": "PlutusV1",
+    //     "plutus:v2": "PlutusV2",
+    //   }),
+    // };
   }
 
   private async getUtxosInternal(
