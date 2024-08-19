@@ -47,7 +47,11 @@ export class Blockfrost implements Provider {
       maxCollateralInputs: parseInt(result.max_collateral_inputs),
       costModels: result.cost_models,
       minFeeReferenceScripts: {
-        base: result.min_fee_ref_script_cost_per_byte,
+        // NOTE: these parameters (and the corresponding fee for reference
+        // scripts) have been introduced with the Chang hard fork and do not
+        // apply before the Conway era. The `base` is a multiplier, so setting
+        // it to zero is equivalent to not adding the reference scripts fee.
+        base: result.min_fee_ref_script_cost_per_byte ?? 0,
         range: 25_600, // FIXME: Blockfrost doesn't seem to provide this parameter (Ogmios does)
         multiplier: 1.2, // FIXME: Blockfrost doesn't seem to provide this parameter (Ogmios does)
       },
