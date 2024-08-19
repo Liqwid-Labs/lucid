@@ -68,7 +68,16 @@ export class Kupmios implements Provider {
               collateralPercentage: parseInt(result.collateralPercentage),
               maxCollateralInputs: parseInt(result.maxCollateralInputs),
               costModels,
-              minFeeReferenceScripts: result.minFeeReferenceScripts
+              minFeeReferenceScripts: result.minFeeReferenceScripts ?? {
+                // NOTE: these parameters (and the corresponding fee for
+                // reference scripts) have been introduced with the Chang hard
+                // fork and do not apply before the Conway era. Setting either
+                // `base` or `multiplier` to zero is equivalent to not adding
+                // the reference scripts fee.
+                base: 0,
+                range: 1,
+                multiplier: 0
+              }
             },
           );
           client.close();
