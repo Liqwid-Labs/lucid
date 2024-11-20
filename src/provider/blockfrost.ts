@@ -212,18 +212,24 @@ export class Blockfrost implements Provider {
     return datum;
   }
 
-  awaitTx(txHash: TxHash, checkInterval = 3000): Promise<boolean> {
-    return new Promise((res) => {
+  awaitTx(txHash: TxHash, checkInterval = 3000, timeout = 60_000): Promise<boolean> {
+    return new Promise((res, rej) => {
       const confirmation = setInterval(async () => {
         const isConfirmed = await fetch(`${this.url}/txs/${txHash}`, {
           headers: { project_id: this.projectId, lucid },
         }).then((res) => res.json());
         if (isConfirmed && !isConfirmed.error) {
           clearInterval(confirmation);
+          clearTimeout(timeoutId);
           await new Promise((res) => setTimeout(() => res(1), 1000));
           return res(true);
         }
       }, checkInterval);
+
+      const timeoutId = setTimeout(() => {
+        clearInterval(confirmation);
+        rej(new Error("Transaction confirmation timed out"));
+      }, timeout);
     });
   }
 
