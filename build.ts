@@ -1,6 +1,6 @@
 import * as dnt from "https://deno.land/x/dnt@0.30.0/mod.ts";
 import * as esbuild from "https://deno.land/x/esbuild@v0.17.11/mod.js";
-import packageInfo from "./package.json" assert { type: "json" };
+import packageInfo from "./package.json" with { type: "json" };
 
 await dnt.emptyDir("./dist");
 
@@ -96,7 +96,7 @@ if (isNode) {
     if (!globalThis.Headers) globalThis.Headers = fetch.Headers;
     if (!globalThis.Request) globalThis.Request = fetch.Request;
     if (!globalThis.Response) globalThis.Response = fetch.Response;
-    if (!globalThis.fs) globalThis.fs = fs; 
+    if (!globalThis.fs) globalThis.fs = fs;
 }
 
 const C = await (async () => {
