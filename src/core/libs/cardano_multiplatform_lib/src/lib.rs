@@ -58,6 +58,7 @@ pub mod typed_bytes;
 pub mod utils;
 pub mod tx_builder_utils;
 pub mod witness_builder;
+pub mod non_empty_set;
 
 use crate::traits::NoneOrEmpty;
 use address::*;

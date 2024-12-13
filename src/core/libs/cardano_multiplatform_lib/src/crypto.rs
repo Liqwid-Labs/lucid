@@ -12,6 +12,8 @@ use cryptoxide::blake2b::Blake2b;
 
 use super::*;
 
+use non_empty_set::*;
+
 pub(crate) fn blake2b224(data: &[u8]) -> [u8; 28] {
     let mut out = [0; 28];
     Blake2b::blake2b(&mut out, data, &[]);
@@ -580,23 +582,11 @@ impl cbor_event::se::Serialize for Vkeywitnesses {
 
 impl Deserialize for Vkeywitnesses {
     fn deserialize<R: BufRead + Seek>(raw: &mut Deserializer<R>) -> Result<Self, DeserializeError> {
-        let mut arr = Vec::new();
         (|| -> Result<_, DeserializeError> {
-            let len = raw.array()?;
-            while match len {
-                cbor_event::Len::Len(n) => arr.len() < n as usize,
-                cbor_event::Len::Indefinite => true,
-            } {
-                if raw.cbor_type()? == cbor_event::Type::Special {
-                    assert_eq!(raw.special()?, cbor_event::Special::Break);
-                    break;
-                }
-                arr.push(Vkeywitness::deserialize(raw)?);
-            }
-            Ok(())
+            let elems = NonemptySet::deserialize(raw)?;
+            Ok(Self(elems.into()))
         })()
-        .map_err(|e| e.annotate("Vkeywitnesses"))?;
-        Ok(Self(arr))
+        .map_err(|e| e.annotate("Vkeywitnesses"))
     }
 }
 
@@ -747,23 +737,11 @@ impl cbor_event::se::Serialize for BootstrapWitnesses {
 
 impl Deserialize for BootstrapWitnesses {
     fn deserialize<R: BufRead + Seek>(raw: &mut Deserializer<R>) -> Result<Self, DeserializeError> {
-        let mut arr = Vec::new();
         (|| -> Result<_, DeserializeError> {
-            let len = raw.array()?;
-            while match len {
-                cbor_event::Len::Len(n) => arr.len() < n as usize,
-                cbor_event::Len::Indefinite => true,
-            } {
-                if raw.cbor_type()? == cbor_event::Type::Special {
-                    assert_eq!(raw.special()?, cbor_event::Special::Break);
-                    break;
-                }
-                arr.push(BootstrapWitness::deserialize(raw)?);
-            }
-            Ok(())
+            let elems = NonemptySet::deserialize(raw)?;
+            Ok(Self(elems.into()))
         })()
-        .map_err(|e| e.annotate("BootstrapWitnesses"))?;
-        Ok(Self(arr))
+        .map_err(|e| e.annotate("BootstrapWitnesses"))
     }
 }
 

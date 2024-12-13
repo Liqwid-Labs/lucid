@@ -1,4 +1,5 @@
-use super::*;
+pub(crate) use super::*;
+use non_empty_set::*;
 use std::io::{BufRead, Seek, Write};
 
 // This library was code-generated using an experimental CDDL to rust tool:
@@ -1535,23 +1536,11 @@ impl cbor_event::se::Serialize for PlutusScripts {
 
 impl Deserialize for PlutusScripts {
     fn deserialize<R: BufRead + Seek>(raw: &mut Deserializer<R>) -> Result<Self, DeserializeError> {
-        let mut arr = Vec::new();
         (|| -> Result<_, DeserializeError> {
-            let len = raw.array()?;
-            while match len {
-                cbor_event::Len::Len(n) => arr.len() < n as usize,
-                cbor_event::Len::Indefinite => true,
-            } {
-                if raw.cbor_type()? == CBORType::Special {
-                    assert_eq!(raw.special()?, CBORSpecial::Break);
-                    break;
-                }
-                arr.push(PlutusScript::deserialize(raw)?);
-            }
-            Ok(())
+            let elems = NonemptySet::deserialize(raw)?;
+            Ok(Self(elems.into()))
         })()
-        .map_err(|e| e.annotate("PlutusScripts"))?;
-        Ok(Self(arr))
+        .map_err(|e| e.annotate("PlutusScripts"))
     }
 }
 
@@ -2021,25 +2010,11 @@ impl cbor_event::se::Serialize for PlutusList {
 
 impl Deserialize for PlutusList {
     fn deserialize<R: BufRead + Seek>(raw: &mut Deserializer<R>) -> Result<Self, DeserializeError> {
-        let mut arr = Vec::new();
-        let len = (|| -> Result<_, DeserializeError> {
-            let len = raw.array()?;
-            while match len {
-                cbor_event::Len::Len(n) => arr.len() < n as usize,
-                cbor_event::Len::Indefinite => true,
-            } {
-                if raw.cbor_type()? == CBORType::Special {
-                    assert_eq!(raw.special()?, CBORSpecial::Break);
-                    break;
-                }
-                arr.push(PlutusData::deserialize(raw)?);
-            }
-            Ok(len)
-        })()
-        .map_err(|e| e.annotate("PlutusList"))?;
+        let elems = NonemptySet::deserialize(raw)
+            .map_err(|e| e.annotate("PlutusList"))?;
         Ok(Self {
-            elems: arr,
-            definite_encoding: Some(len != cbor_event::Len::Indefinite),
+            elems: elems.elems,
+            definite_encoding: Some(elems.len_encoding != cbor_event::Len::Indefinite),
         })
     }
 }
@@ -2151,23 +2126,11 @@ impl cbor_event::se::Serialize for Redeemers {
 
 impl Deserialize for Redeemers {
     fn deserialize<R: BufRead + Seek>(raw: &mut Deserializer<R>) -> Result<Self, DeserializeError> {
-        let mut arr = Vec::new();
         (|| -> Result<_, DeserializeError> {
-            let len = raw.array()?;
-            while match len {
-                cbor_event::Len::Len(n) => arr.len() < n as usize,
-                cbor_event::Len::Indefinite => true,
-            } {
-                if raw.cbor_type()? == CBORType::Special {
-                    assert_eq!(raw.special()?, CBORSpecial::Break);
-                    break;
-                }
-                arr.push(Redeemer::deserialize(raw)?);
-            }
-            Ok(())
+            let elems = NonemptySet::deserialize(raw)?;
+            Ok(Self(elems.into()))
         })()
-        .map_err(|e| e.annotate("Redeemers"))?;
-        Ok(Self(arr))
+        .map_err(|e| e.annotate("Redeemers"))
     }
 }
 
