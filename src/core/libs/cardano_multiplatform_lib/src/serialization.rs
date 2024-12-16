@@ -3540,23 +3540,11 @@ impl cbor_event::se::Serialize for NativeScripts {
 
 impl Deserialize for NativeScripts {
     fn deserialize<R: BufRead + Seek>(raw: &mut Deserializer<R>) -> Result<Self, DeserializeError> {
-        let mut arr = Vec::new();
         (|| -> Result<_, DeserializeError> {
-            let len = raw.array()?;
-            while match len {
-                cbor_event::Len::Len(n) => arr.len() < n as usize,
-                cbor_event::Len::Indefinite => true,
-            } {
-                if raw.cbor_type()? == CBORType::Special {
-                    assert_eq!(raw.special()?, CBORSpecial::Break);
-                    break;
-                }
-                arr.push(NativeScript::deserialize(raw)?);
-            }
-            Ok(())
+            let elems = NonemptySet::deserialize(raw)?;
+            Ok(Self(elems.into()))
         })()
-        .map_err(|e| e.annotate("NativeScripts"))?;
-        Ok(Self(arr))
+        .map_err(|e| e.annotate("NativeScripts"))
     }
 }
 
