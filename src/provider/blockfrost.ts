@@ -56,7 +56,7 @@ export class Blockfrost implements Provider {
       coinsPerUtxoByte: BigInt(result.coins_per_utxo_size),
       collateralPercentage: parseInt(result.collateral_percent),
       maxCollateralInputs: parseInt(result.max_collateral_inputs),
-      costModels: result.cost_models,
+      costModels: result.cost_models_raw ?? result.cost_models,
       minFeeReferenceScripts: {
         // NOTE: these parameters (and the corresponding fee for reference
         // scripts) have been introduced with the Chang hard fork and do not

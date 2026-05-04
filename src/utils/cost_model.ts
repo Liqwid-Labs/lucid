@@ -5,19 +5,30 @@ import { ProtocolParameters } from "../types/types.ts";
 export function createCostModels(costModels: CostModels): C.Costmdls {
   const costmdls = C.Costmdls.new();
 
+  const toCost = (cost: number) => cost < 0
+    ? C.Int.new_negative(C.BigNum.from_str((-cost).toString()))
+    : C.Int.new(C.BigNum.from_str(cost.toString()));
+
   // add plutus v1
   const costmdlV1 = C.CostModel.new();
   Object.values(costModels.PlutusV1).forEach((cost, index) => {
-    costmdlV1.set(index, C.Int.new(C.BigNum.from_str(cost.toString())));
+    costmdlV1.set(index, toCost(cost));
   });
   costmdls.insert(C.Language.new_plutus_v1(), costmdlV1);
 
   // add plutus v2
   const costmdlV2 = C.CostModel.new_plutus_v2();
   Object.values(costModels.PlutusV2 || []).forEach((cost, index) => {
-    costmdlV2.set(index, C.Int.new(C.BigNum.from_str(cost.toString())));
+    costmdlV2.set(index, toCost(cost));
   });
   costmdls.insert(C.Language.new_plutus_v2(), costmdlV2);
+
+  // add plutus v3
+  const costmdlV3 = C.CostModel.new_plutus_v3();
+  Object.values(costModels.PlutusV3 || []).forEach((cost, index) => {
+    costmdlV3.set(index, toCost(cost));
+  });
+  costmdls.insert(C.Language.new_plutus_v3(), costmdlV3);
 
   return costmdls;
 }
