@@ -210,11 +210,7 @@ impl CostModel {
 
     pub fn set(&mut self, operation: usize, cost: &Int) -> Result<Int, JsError> {
         if operation >= self.len() {
-            return Err(JsError::from_str(&format!(
-                "CostModel operation {} out of bounds. Max is {}",
-                operation,
-                self.len()
-            )));
+            self.0.resize(operation + 1, Int::new_i32(0));
         }
         let old = self.0[operation].clone();
         self.0[operation] = cost.clone();
@@ -1634,10 +1630,10 @@ impl Deserialize for CostModel {
                 }
                 arr.push(Int::deserialize(raw)?);
             }
-            if arr.len() != OP_COUNT_V1 && arr.len() != OP_COUNT_V2 {
+            if arr.is_empty() {
                 return Err(DeserializeFailure::OutOfRange {
-                    min: OP_COUNT_V1,
-                    max: OP_COUNT_V1,
+                    min: 1,
+                    max: usize::MAX,
                     found: arr.len(),
                 }
                 .into());
