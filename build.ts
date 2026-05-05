@@ -25,11 +25,22 @@ await dnt.build({
     },
     main: "./esm/mod.js",
     type: "module",
+    files: [
+      "esm/",
+      "types/",
+      "web/",
+      "LICENSE",
+      "README.md",
+    ],
   },
 });
 
 Deno.copyFileSync("LICENSE", "dist/LICENSE");
 Deno.copyFileSync("README.md", "dist/README.md");
+Deno.writeTextFileSync(
+  "dist/.npmignore",
+  "test_runner.js\nyarn.lock\npnpm-lock.yaml\n",
+);
 
 // Copy WebAssembly
 
